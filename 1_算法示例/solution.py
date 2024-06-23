@@ -35,7 +35,7 @@ def load_data(dataset):
     # 将DGL图对象转换为NetworkX图对象。g.to_networkx()方法可以将DGL图对象转换为NetworkX图对象，便于后续使用NetworkX进行图操作。
     nxg = g.to_networkx()
     # 将NetworkX图对象转换为SciPy稀疏矩阵表示的邻接矩阵。nx.to_scipy_sparse_matrix(nxg, dtype=np.float)函数将NetworkX图对象转换为SciPy稀疏矩阵格式的邻接矩阵，方便后续进行稀疏矩阵操作。
-    adj = nx.to_scipy_sparse_array(nxg, dtype=np.float)
+    adj = nx.to_scipy_sparse_array(nxg, dtype=np.float64)
     # 对邻接矩阵进行预处理。preprocess_adj(adj)函数对邻接矩阵进行归一化处理。
     adj = preprocess_adj(adj)
     # 将SciPy稀疏矩阵转换为PyTorch稀疏张量。sparse_mx_to_torch_sparse_tensor(adj)函数将SciPy稀疏矩阵转换为PyTorch稀疏张量，以便在PyTorch中进行计算。
