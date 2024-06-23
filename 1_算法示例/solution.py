@@ -89,7 +89,7 @@ def sparse_mx_to_torch_sparse_tensor(sparse_mx):
     shape = torch.Size(sparse_mx.shape)
     # 创建一个PyTorch稀疏张量并返回。torch.sparse.FloatTensor(indices, values, shape)使用前面生成的索引、值和形状构造一个稀疏张量。
     # 这种张量的存储和操作方式更加高效，适合处理大规模稀疏矩阵。
-    return torch.sparse.FloatTensor(indices, values, shape)
+    return torch.sparse_coo_tensor(indices, values, shape)
 
 # 定义GCN层
 class GraphConvolution(Module):
