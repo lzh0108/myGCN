@@ -13,6 +13,10 @@ import random
 import argparse
 import numpy as np
 import torch.optim as optim
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+import matplotlib.pyplot as plt
+import os
+
 
 # 加载数据集
 def load_data(dataset):
@@ -242,8 +246,6 @@ def train(epoch, model, optimizer, adj, features, labels, idx_train, idx_val):
     # 返回验证集上的损失值loss_val，以便在训练过程中进行监控和调整。
     return loss_val
 
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-
 # 计算准确率
 def calculate_accuracy(output, labels):
     preds = output.max(1)[1].type_as(labels)
@@ -260,7 +262,7 @@ def calculate_f1(output, labels):
 def calculate_roc_auc(output, labels):
     preds = torch.softmax(output, dim=1)
     labels_onehot = torch.nn.functional.one_hot(labels, num_classes=preds.size(1))
-    return roc_auc_score(labels_onehot.cpu(), preds.cpu(), average='weighted', multi_class='ovr')
+    return roc_auc_score(labels_onehot.cpu().detach().numpy(), preds.cpu().detach().numpy(), average='weighted', multi_class='ovr')
 
 # 评估模型性能
 def evaluate(model, features, adj, labels, idx_test):
@@ -311,12 +313,60 @@ def main(dataset, times):
         # 将模型移动到指定的设备（CPU或GPU）。
         model.to(device)
 
-        # 在指定的训练轮数内训练模型。每轮训练调用一次train函数，传递当前的轮数、模型、优化器、邻接矩阵、特征矩阵、标签和掩码索引。
-        for epoch in range(args.epochs):
-            train(epoch, model, optimizer, adj, features, labels, idx_train, idx_val)
+        # 用于存储结果的列表
+        val_losses = []
+        accuracies = []
+        f1_scores = []
+        roc_aucs = []
 
+        for epoch in range(args.epochs):
+            loss_val = train(epoch, model, optimizer, adj, features, labels, idx_train, idx_val)
+            val_losses.append(loss_val.item())
+
+            # 评估并存储性能指标
+            accuracy, f1, roc_auc = evaluate(model, features, adj, labels, idx_val)
+            accuracies.append(accuracy.item())
+            f1_scores.append(f1)
+            roc_aucs.append(roc_auc)
+
+        # 打印最终的评估结果
         accuracy, f1, roc_auc = evaluate(model, features, adj, labels, idx_test)
-        print(f"Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC-AUC: {roc_auc:.4f}")
+        print(f"Final Evaluation on Test Set - Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC-AUC: {roc_auc:.4f}")
+
+        # 绘制并保存结果图
+        plt.figure(figsize=(12, 8))
+
+        plt.subplot(2, 2, 1)
+        plt.plot(range(args.epochs), val_losses, label='Validation Loss')
+        plt.xlabel('Epochs')
+        plt.ylabel('Loss')
+        plt.legend()
+        plt.savefig(os.path.join(output_dir, 'validation_loss.png'))
+
+        plt.subplot(2, 2, 2)
+        plt.plot(range(args.epochs), accuracies, label='Validation Accuracy')
+        plt.xlabel('Epochs')
+        plt.ylabel('Accuracy')
+        plt.legend()
+        plt.savefig(os.path.join(output_dir, 'validation_accuracy.png'))
+
+        plt.subplot(2, 2, 3)
+        plt.plot(range(args.epochs), f1_scores, label='Validation F1 Score')
+        plt.xlabel('Epochs')
+        plt.ylabel('F1 Score')
+        plt.legend()
+        plt.savefig(os.path.join(output_dir, 'validation_f1_score.png'))
+
+        plt.subplot(2, 2, 4)
+        plt.plot(range(args.epochs), roc_aucs, label='Validation ROC-AUC')
+        plt.xlabel('Epochs')
+        plt.ylabel('ROC-AUC')
+        plt.legend()
+        plt.savefig(os.path.join(output_dir, 'validation_roc_auc.png'))
+
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, 'all_metrics.png'))
+        plt.show()
 
     print("模型训练完成。")
     # 从1到100范围内随机抽取10个整数，表示验证集中随机选择的节点索引。
@@ -331,4 +381,8 @@ def main(dataset, times):
 
 
 if __name__ == '__main__':
+    # 确保保存图像的目录存在
+    output_dir = "./output_images"
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     main(dataset=args.dataset, times=args.times)
