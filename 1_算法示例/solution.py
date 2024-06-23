@@ -238,8 +238,38 @@ def train(epoch, model, optimizer, adj, features, labels, idx_train, idx_val):
         model.eval()
         output = model(features, adj)
         loss_val = criterion(output[idx_val], labels[idx_val])
+    print(f'Epoch {epoch + 1}, Loss Val: {loss_val.item()}')
     # 返回验证集上的损失值loss_val，以便在训练过程中进行监控和调整。
     return loss_val
+
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+
+# 计算准确率
+def calculate_accuracy(output, labels):
+    preds = output.max(1)[1].type_as(labels)
+    correct = preds.eq(labels).double()
+    correct = correct.sum()
+    return correct / len(labels)
+
+# 计算F1分数
+def calculate_f1(output, labels):
+    preds = output.max(1)[1].type_as(labels)
+    return f1_score(labels.cpu(), preds.cpu(), average='weighted')
+
+# 计算ROC-AUC
+def calculate_roc_auc(output, labels):
+    preds = torch.softmax(output, dim=1)
+    labels_onehot = torch.nn.functional.one_hot(labels, num_classes=preds.size(1))
+    return roc_auc_score(labels_onehot.cpu(), preds.cpu(), average='weighted', multi_class='ovr')
+
+# 评估模型性能
+def evaluate(model, features, adj, labels, idx_test):
+    model.eval()
+    output = model(features, adj)
+    accuracy = calculate_accuracy(output[idx_test], labels[idx_test])
+    f1 = calculate_f1(output[idx_test], labels[idx_test])
+    roc_auc = calculate_roc_auc(output[idx_test], labels[idx_test])
+    return accuracy, f1, roc_auc
 
 # 定义了一个名为main的函数，用于运行GCN模型的主要逻辑。它接受两个参数：
 #
@@ -283,19 +313,21 @@ def main(dataset, times):
 
         # 在指定的训练轮数内训练模型。每轮训练调用一次train函数，传递当前的轮数、模型、优化器、邻接矩阵、特征矩阵、标签和掩码索引。
         for epoch in range(args.epochs):
-            train(epoch, model, optimizer, adj,
-                  features, labels, idx_train, idx_val)
+            train(epoch, model, optimizer, adj, features, labels, idx_train, idx_val)
 
-        print("模型训练完成。")
-        # 从1到100范围内随机抽取10个整数，表示验证集中随机选择的节点索引。
-        ind = random.sample(range(1, 100), 10)
-        # 对所有节点进行预测，获取模型的输出。torch.argmax(model(features, adj), dim=1)返回每个节点的预测类别。
-        out = torch.argmax(model(features, adj), dim=1)
+        accuracy, f1, roc_auc = evaluate(model, features, adj, labels, idx_test)
+        print(f"Accuracy: {accuracy:.4f}, F1 Score: {f1:.4f}, ROC-AUC: {roc_auc:.4f}")
 
-        print("从验证集中随机抽取10个节点的结果进行对比")
-        print("节点索引 ", ind)
-        print("真实类别编号 ", labels[idx_val][ind].tolist())
-        print("预测类别编号 ", out[idx_val][ind].tolist())
+    print("模型训练完成。")
+    # 从1到100范围内随机抽取10个整数，表示验证集中随机选择的节点索引。
+    ind = random.sample(range(1, 100), 10)
+    # 对所有节点进行预测，获取模型的输出。torch.argmax(model(features, adj), dim=1)返回每个节点的预测类别。
+    out = torch.argmax(model(features, adj), dim=1)
+
+    print("从验证集中随机抽取10个节点的结果进行对比")
+    print("节点索引 ", ind)
+    print("真实类别编号 ", labels[idx_val][ind].tolist())
+    print("预测类别编号 ", out[idx_val][ind].tolist())
 
 
 if __name__ == '__main__':
